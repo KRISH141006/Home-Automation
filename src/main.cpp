@@ -1,37 +1,55 @@
 #include <Arduino.h>
 
-#include "relay_manager.h"
-#include "switch_manager.h"
 #include "wifi_manager.h"
 #include "mqtt_manager.h"
+#include "relay_manager.h"
+#include "switch_manager.h"
+#include "webserver_manager.h"
 
 void setup() {
 
     Serial.begin(115200);
 
-    initRelay();
+    Serial.println();
+    Serial.println("=================================");
+    Serial.println("SMARTGRUH PROTOTYPE - SINGLE SWITCH");
+    Serial.println("=================================");
 
-    initSwitch();
+    // Relays
+    setupRelays();
 
-    initWiFi();
+    // Switches
+    setupSwitches();
 
-    initMQTT();
+    // WiFi with AP Fallback
+    setupWiFi();
 
-    Serial.println("System Ready");
+    // MQTT
+    setupMQTT();
+
+    // Local Web Server
+    setupWebServer();
+
+    Serial.println("=================================");
+    Serial.println("SYSTEM READY");
+    Serial.println("=================================");
 }
 
 void loop() {
 
-    checkWiFi();
-
     mqttLoop();
 
-    if(switchTriggered) {
+    handleSwitches();
 
-        switchTriggered = false;
+    handleWebServer();
 
-        toggleRelay();
+    // Debug State Every 5s
+    static unsigned long lastDebug = 0;
+    if(millis() - lastDebug > 5000) {
 
-        publishRelayStatus();
+        lastDebug = millis();
+
+        Serial.print("[STATE] Bulb: ");
+        Serial.println(getRelayState() ? "ON" : "OFF");
     }
 }

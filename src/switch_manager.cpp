@@ -1,36 +1,47 @@
 #include <Arduino.h>
 
+#include "switch_manager.h"
 #include "config.h"
+#include "relay_manager.h"
+#include "mqtt_manager.h"
 
-volatile bool switchTriggered = false;
+volatile bool switchPressed = false;
 
-unsigned long lastInterruptTime = 0;
+unsigned long lastInterrupt = 0;
 
-unsigned long ignoreInterruptUntil = 0;
+void IRAM_ATTR switchISR()
+{
+    unsigned long now = millis();
 
-void IRAM_ATTR handleSwitchInterrupt() {
-
-    unsigned long currentTime = millis();
-
-    if(currentTime < ignoreInterruptUntil) {
-        return;
-    }
-
-    if(currentTime - lastInterruptTime > 300) {
-
-        switchTriggered = true;
-
-        lastInterruptTime = currentTime;
+    if(now - lastInterrupt > 250)
+    {
+        switchPressed = true;
+        lastInterrupt = now;
     }
 }
 
-void initSwitch() {
-
-    pinMode(SWITCH_PIN, INPUT_PULLDOWN);
+void setupSwitches()
+{
+    pinMode(SWITCH_PIN, INPUT_PULLUP);
 
     attachInterrupt(
         digitalPinToInterrupt(SWITCH_PIN),
-        handleSwitchInterrupt,
-        FALLING
+        switchISR,
+        CHANGE
     );
+}
+
+void handleSwitches()
+{
+    if(switchPressed)
+    {
+        switchPressed = false;
+
+        toggleRelay();
+
+        publishState(
+            TOPIC_STATUS,
+            getRelayState()
+        );
+    }
 }

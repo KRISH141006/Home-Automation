@@ -1,18 +1,13 @@
-#include <Arduino.h>
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 
 #include "mqtt_manager.h"
-#include "relay_manager.h"
 #include "config.h"
+#include "relay_manager.h"
 
 WiFiClientSecure espClient;
-
 PubSubClient mqttClient(espClient);
-
-// =====================================================
-// CALLBACK
-// =====================================================
 
 void mqttCallback(
     char* topic,
@@ -27,88 +22,69 @@ void mqttCallback(
         message += (char)payload[i];
     }
 
-    Serial.print("Message: ");
-
+    Serial.print("[MQTT] Received: ");
+    Serial.print(topic);
+    Serial.print(" -> ");
     Serial.println(message);
 
-    if(message == "ON") {
+    bool state = (message == "ON");
 
-        setRelay(true);
-
-        publishRelayStatus();
-    }
-
-    else if(message == "OFF") {
-
-        setRelay(false);
-
-        publishRelayStatus();
+    if(String(topic) == TOPIC_STATUS) {
+        setRelay(state);
     }
 }
 
-// =====================================================
-// MQTT CONNECT
-// =====================================================
+void setupMQTT() {
+
+    espClient.setInsecure();
+
+    mqttClient.setServer(
+        MQTT_BROKER,
+        MQTT_PORT
+    );
+
+    mqttClient.setCallback(mqttCallback);
+}
 
 void reconnectMQTT() {
 
-    while(!mqttClient.connected()) {
+    // Only attempt MQTT if WiFi is connected
+    if(WiFi.status() != WL_CONNECTED) return;
 
-        Serial.println("Connecting MQTT...");
+    static unsigned long lastReconnect = 0;
 
-        String clientId = "ESP32Client-";
+    if(millis() - lastReconnect > 5000) {
 
-        clientId += String(random(0xffff), HEX);
+        lastReconnect = millis();
+
+        Serial.println("[MQTT] Connecting...");
 
         if(
             mqttClient.connect(
-                clientId.c_str(),
+                MQTT_CLIENT_ID,
                 MQTT_USERNAME,
                 MQTT_PASSWORD
             )
         ) {
 
-            Serial.println("MQTT Connected");
+            Serial.println("[MQTT] Connected");
 
-            mqttClient.subscribe(
-                "home/room1/light1/set"
+            mqttClient.subscribe(TOPIC_STATUS);
+
+            // Publish initial state on connection
+            publishState(
+                TOPIC_STATUS,
+                getRelayState()
             );
         }
 
         else {
 
-            Serial.print("Failed: ");
-
-            Serial.println(
-                mqttClient.state()
-            );
-
-            delay(2000);
+            Serial.print("[MQTT] Failed, rc = ");
+            Serial.println(mqttClient.state());
         }
     }
 }
-
-// =====================================================
-// INIT
-// =====================================================
-
-void initMQTT() {
-
-    espClient.setInsecure();
-
-    mqttClient.setServer(
-        MQTT_SERVER,
-        8883
-    );
-
-    mqttClient.setCallback(
-        mqttCallback
-    );
-}
-
-// =====================================================
-// LOOP
-// =====================================================
 
 void mqttLoop() {
 
@@ -120,25 +96,14 @@ void mqttLoop() {
     mqttClient.loop();
 }
 
-// =====================================================
-// STATUS
-// =====================================================
-
-void publishRelayStatus() {
-
-    if(getRelayState()) {
-
+void publishState(
+    const char* topic,
+    bool state
+) {
+    if(mqttClient.connected()) {
         mqttClient.publish(
-            "MQTT_TOPIC_STATUS",
-            "ON"
-        );
-    }
-
-    else {
-
-        mqttClient.publish(
-            "MQTT_TOPIC_STATUS",
-            "OFF"
+            topic,
+            state ? "ON" : "OFF"
         );
     }
 }

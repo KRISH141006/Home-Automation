@@ -1,9 +1,13 @@
-#pragma once
+#ifndef MQTT_MANAGER_H
+#define MQTT_MANAGER_H
 
-void initMQTT();
-
+void setupMQTT();
 void reconnectMQTT();
-
 void mqttLoop();
 
-void publishRelayStatus();
+void publishState(
+    const char* topic,
+    bool state
+);
+
+#endif

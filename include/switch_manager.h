@@ -1,6 +1,7 @@
-#pragma once
+#ifndef SWITCH_MANAGER_H
+#define SWITCH_MANAGER_H
 
-extern volatile bool switchTriggered;
+void setupSwitches();
+void handleSwitches();
 
-extern unsigned long ignoreInterruptUntil;
-void initSwitch();
+#endif

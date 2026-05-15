@@ -1,208 +1,69 @@
-#include <Arduino.h>
-#include <WiFi.h>
 #include <WebServer.h>
 
 #include "webserver_manager.h"
 #include "relay_manager.h"
-#include "config.h"
 
 WebServer server(80);
 
-// prevents false interrupt after web control
-extern unsigned long ignoreInterruptUntil;
-
-// =====================================================
-// HTML
-// =====================================================
-String getHTML() {
-
-return R"rawliteral(
-
+const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
-
 <head>
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<title>ESP32 Relay</title>
-
-<style>
-
-body{
-  background:#121212;
-  color:white;
-  font-family:Arial;
-  text-align:center;
-  margin-top:50px;
-}
-
-.card{
-  background:#1f1f1f;
-  width:320px;
-  margin:auto;
-  padding:30px;
-  border-radius:20px;
-}
-
-button{
-  width:120px;
-  height:55px;
-  font-size:20px;
-  border:none;
-  border-radius:12px;
-  margin:10px;
-  cursor:pointer;
-}
-
-.on{
-  background:green;
-  color:white;
-}
-
-.off{
-  background:red;
-  color:white;
-}
-
-#status{
-  font-size:30px;
-  margin:20px;
-}
-
-</style>
-
+    <title>SmartGruh - Local</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .card { background: white; padding: 40px; border-radius: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border: 8px solid #cbd5e1; }
+        h1 { color: #0f172a; margin-bottom: 30px; }
+        .switch-btn { width: 80px; height: 140px; border-radius: 20px; background: #9ca3af; cursor: pointer; display: inline-block; position: relative; transition: 0.3s; box-shadow: inset 0 5px 10px rgba(255,255,255,0.8), 0 4px 8px rgba(0,0,0,0.1); }
+        .switch-btn.active { background: #22c55e; box-shadow: 0 0 20px rgba(34,197,94,0.6); }
+        .icon { font-size: 50px; margin-top: 20px; }
+        .label { margin-top: 15px; font-weight: bold; color: #475569; }
+    </style>
 </head>
-
 <body>
-
-<div class="card">
-
-<h1>ESP32 Relay</h1>
-
-<div id="status">Loading...</div>
-
-<button class="on" onclick="setRelay(1)">
-ON
-</button>
-
-<button class="off" onclick="setRelay(0)">
-OFF
-</button>
-
-</div>
-
-<script>
-
-function setRelay(state){
-
-  fetch("/relay?state=" + state)
-  .then(response => response.text())
-  .then(data => {
-
-    updateStatus();
-
-  });
-
-}
-
-function updateStatus(){
-
-  fetch("/status")
-  .then(response => response.text())
-  .then(data => {
-
-    if(data == "1"){
-      document.getElementById("status").innerHTML =
-      "Relay ON";
-    }
-    else{
-      document.getElementById("status").innerHTML =
-      "Relay OFF";
-    }
-
-  });
-
-}
-
-setInterval(updateStatus, 500);
-
-updateStatus();
-
-</script>
-
+    <div class="card">
+        <h1>SmartGruh Local</h1>
+        <div id="btn" class="switch-btn" onclick="toggle()"></div>
+        <div class="icon">💡</div>
+        <div class="label">BULB</div>
+    </div>
+    <script>
+        function updateUI(state) {
+            const btn = document.getElementById('btn');
+            if(state == 'ON') btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+        function toggle() {
+            fetch('/toggle').then(r => r.text()).then(state => updateUI(state));
+        }
+        setInterval(() => {
+            fetch('/status').then(r => r.text()).then(state => updateUI(state));
+        }, 2000);
+        toggle(); // Initial state fetch
+    </script>
 </body>
 </html>
-
 )rawliteral";
 
-}
+void setupWebServer() {
 
-// =====================================================
-// ROUTES
-// =====================================================
+    server.on("/", []() {
+        server.send(200, "text/html", INDEX_HTML);
+    });
 
-void handleRoot() {
+    server.on("/toggle", []() {
+        toggleRelay();
+        server.send(200, "text/plain", getRelayState() ? "ON" : "OFF");
+    });
 
-    server.send(200, "text/html", getHTML());
-}
-
-void handleRelayRoute() {
-
-    if(server.hasArg("state")) {
-
-        String state = server.arg("state");
-
-        if(state == "1") {
-            setRelay(true);
-        }
-        else {
-            setRelay(false);
-        }
-
-        ignoreInterruptUntil = millis() + 500;
-    }
-
-    server.send(200, "text/plain", "OK");
-}
-
-void handleStatus() {
-
-    server.send(
-        200,
-        "text/plain",
-        getRelayState() ? "1" : "0"
-    );
-}
-
-// =====================================================
-// INIT
-// =====================================================
-
-void initWebServer() {
-
-    WiFi.softAP(AP_SSID, AP_PASSWORD);
-
-    Serial.println("AP Started");
-
-    Serial.println(WiFi.softAPIP());
-
-    server.on("/", handleRoot);
-
-    server.on("/relay", handleRelayRoute);
-
-    server.on("/status", handleStatus);
+    server.on("/status", []() {
+        server.send(200, "text/plain", getRelayState() ? "ON" : "OFF");
+    });
 
     server.begin();
-
-    Serial.println("WebServer Started");
 }
 
-// =====================================================
-// LOOP
-// =====================================================
-
 void handleWebServer() {
-
     server.handleClient();
 }

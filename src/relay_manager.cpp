@@ -1,69 +1,27 @@
 #include <Arduino.h>
-#include "relay_manager.h"
 
+#include "relay_manager.h"
 #include "config.h"
 
-static bool relayState = false;
+bool relayState = false;
 
-// =====================================================
-// APPLY RELAY STATE
-// =====================================================
-
-void applyRelayState() {
-
-    bool gpioState;
-
-    if(RELAY_ACTIVE_HIGH) {
-
-        gpioState = relayState;
-    }
-
-    else {
-
-        gpioState = !relayState;
-    }
-
-    digitalWrite(RELAY_PIN, gpioState);
-}
-
-// =====================================================
-// INIT
-// =====================================================
-
-void initRelay() {
-
+void setupRelays() {
+    // Write state BEFORE pinMode to avoid boot-up flicker
+    digitalWrite(RELAY_PIN, LOW);
     pinMode(RELAY_PIN, OUTPUT);
-
-    applyRelayState();
+    relayState = false;
 }
-
-// =====================================================
-// SET RELAY
-// =====================================================
 
 void setRelay(bool state) {
-
     relayState = state;
-
-    applyRelayState();
+    // Active High Logic: ON = HIGH, OFF = LOW
+    digitalWrite(RELAY_PIN, state ? HIGH : LOW);
 }
-
-// =====================================================
-// TOGGLE RELAY
-// =====================================================
 
 void toggleRelay() {
-
-    relayState = !relayState;
-
-    applyRelayState();
+    setRelay(!relayState);
 }
 
-// =====================================================
-// GET STATE
-// =====================================================
-
 bool getRelayState() {
-
     return relayState;
 }

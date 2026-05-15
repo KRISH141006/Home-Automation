@@ -1,37 +1,57 @@
-#include <Arduino.h>
 #include <WiFi.h>
-
 #include "wifi_manager.h"
 #include "config.h"
 
-void initWiFi() {
+bool isAPMode = false;
 
-    Serial.println("Connecting WiFi");
+void setupWiFi() {
 
+    WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-    while(WiFi.status() != WL_CONNECTED) {
+    Serial.print("[WIFI] Connecting to ");
+    Serial.println(WIFI_SSID);
 
+    unsigned long startAttemptTime = millis();
+
+    // Try connecting for 10 seconds
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
         delay(500);
-
         Serial.print(".");
     }
 
-    Serial.println();
+    if (WiFi.status() == WL_CONNECTED) {
 
-    Serial.println("WiFi Connected");
+        Serial.println("\n[WIFI] Connected");
+        Serial.print("[WIFI] IP: ");
+        Serial.println(WiFi.localIP());
 
-    Serial.println(WiFi.localIP());
+        isAPMode = false;
+    }
+
+    else {
+
+        Serial.println("\n[WIFI] Failed to connect. Starting AP...");
+
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(AP_SSID, AP_PASSWORD);
+
+        Serial.print("[WIFI] AP Started: ");
+        Serial.println(AP_SSID);
+        Serial.print("[WIFI] AP IP: ");
+        Serial.println(WiFi.softAPIP());
+
+        isAPMode = true;
+    }
 }
 
-void checkWiFi() {
+bool checkWiFi() {
 
-    if(WiFi.status() != WL_CONNECTED) {
+    if(!isAPMode && WiFi.status() != WL_CONNECTED) {
 
-        Serial.println("WiFi Lost");
-
-        WiFi.disconnect();
-
-        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+        // Try to reconnect or fallback to AP
+        setupWiFi();
     }
+
+    return (WiFi.status() == WL_CONNECTED);
 }

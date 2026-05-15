@@ -1,5 +1,7 @@
-#pragma once
+#ifndef WIFI_MANAGER_H
+#define WIFI_MANAGER_H
 
-void initWiFi();
+void setupWiFi();
+bool checkWiFi();
 
-void checkWiFi();
+#endif
